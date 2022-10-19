@@ -1,9 +1,11 @@
 package main
 
 import (
+	"bytes"
 	"github.com/gorilla/websocket"
 	"log"
 	"net/http"
+	"time"
 )
 
 // Probably set this buffers size bigger than they are.
@@ -38,6 +40,26 @@ func handler(w http.ResponseWriter, req *http.Request) {
 	}
 
 	client := Client{conn: conn}
+}
+
+func (c *Client) readPump() {
+	defer func() {
+		c.conn.Close()
+	}()
+	c.conn.SetReadLimit(maxMessageSize)
+	c.conn.SetReadDeadline(time.Now().Add(pongWait))
+	c.conn.SetPongHandler(func(string) error { c.conn.SetReadDeadline(time.Now().Add(pongWait)); return nil })
+	for {
+		_, message, err := c.conn.ReadMessage()
+		if err != nil {
+			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
+				log.Printf("error: %v", err)
+			}
+			break
+		}
+		message = bytes.TrimSpace(bytes.Replace(message, newline, space, -1))
+		c.hub.broadcast <- message
+	}
 }
 
 func GetConnection(w http.ResponseWriter, req *http.Request) (*websocket.Conn, error) {
