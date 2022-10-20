@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/gorilla/websocket"
-	"log"
 	"net/http"
 	"time"
 )
@@ -26,7 +25,6 @@ const (
 var (
 	newline = []byte{'\n'}
 	space   = []byte{' '}
-	hub     = newHub()
 )
 
 // Probably set this buffers size bigger than they are.
@@ -47,8 +45,15 @@ func main() {
 }
 
 func Server() {
+	hub := newHub()
 	go hub.run()
-	http.HandleFunc("/chatbot", handler)
+
+	http.HandleFunc("/chatbot", func(w http.ResponseWriter, req *http.Request) {
+		println("Started")
+		handler(hub, w, req)
+	})
+
+	_ = http.ListenAndServe(":9091", nil)
 }
 
 type Client struct {
@@ -58,43 +63,25 @@ type Client struct {
 	send chan []byte
 }
 
-func handler(w http.ResponseWriter, req *http.Request) {
+func handler(hub *Hub, w http.ResponseWriter, req *http.Request) {
 	conn, err := GetConnection(w, req)
 	if err != nil {
-		log.Println(err)
+		fmt.Println(err)
 		return
 	}
+	println("Connected")
 
-	client := &Client{conn: conn, hub: hub}
+	client := &Client{conn: conn, hub: hub, send: make(chan []byte)}
+
 	hub.register <- client
 
-	fmt.Println(client)
+	fmt.Println("Registered")
 
 	go client.readPump()
 }
 
-func (c *Client) readPump() {
-	defer func() {
-		c.conn.Close()
-	}()
-	c.conn.SetReadLimit(maxMessageSize)
-	c.conn.SetReadDeadline(time.Now().Add(pongWait))
-	c.conn.SetPongHandler(func(string) error { c.conn.SetReadDeadline(time.Now().Add(pongWait)); return nil })
-	for {
-		_, message, err := c.conn.ReadMessage()
-		if err != nil {
-			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-				log.Printf("error: %v", err)
-			}
-			break
-		}
-		message = bytes.TrimSpace(bytes.Replace(message, newline, space, -1))
-		//c.hub.SendMessage2 <- message
-		c.hub.SendMessage(c, message)
-	}
-}
-
 func GetConnection(w http.ResponseWriter, req *http.Request) (*websocket.Conn, error) {
+	upgrader.CheckOrigin = func(r *http.Request) bool { return true }
 	conn, err := upgrader.Upgrade(w, req, nil)
 
 	if err != nil {
@@ -102,4 +89,28 @@ func GetConnection(w http.ResponseWriter, req *http.Request) (*websocket.Conn, e
 	}
 
 	return conn, nil
+}
+
+func (c *Client) readPump() {
+	defer func() {
+		fmt.Println("Closed Client")
+		c.conn.Close()
+	}()
+
+	c.conn.SetReadLimit(maxMessageSize)
+	c.conn.SetReadDeadline(time.Now().Add(pongWait))
+	c.conn.SetPongHandler(func(string) error { c.conn.SetReadDeadline(time.Now().Add(pongWait)); return nil })
+	for {
+		_, message, err := c.conn.ReadMessage()
+		println("READ-ED MESSAGE")
+		if err != nil {
+			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
+				fmt.Printf("error: %v", err)
+			}
+			break
+		}
+		message = bytes.TrimSpace(bytes.Replace(message, newline, space, -1))
+		c.hub.SendMessage2 <- message
+		c.hub.SendMessage(c, message)
+	}
 }

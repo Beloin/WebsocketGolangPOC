@@ -27,9 +27,11 @@ func newHub() *Hub {
 }
 
 func (h *Hub) run() {
+	println("Running HUB")
 	for {
 		select {
 		case client := <-h.register:
+			println("Registing client")
 			h.clients[client] = true
 		//case client := <-h.unregister:
 		//	if _, ok := h.clients[client]; ok {
@@ -37,6 +39,7 @@ func (h *Hub) run() {
 		//		close(client.send)
 		//	}
 		case message := <-h.SendMessage2:
+			fmt.Printf(string(message))
 			for client := range h.clients {
 				select {
 				case client.send <- message:
