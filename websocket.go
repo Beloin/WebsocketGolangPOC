@@ -2,10 +2,31 @@ package main
 
 import (
 	"bytes"
+	"fmt"
 	"github.com/gorilla/websocket"
 	"log"
 	"net/http"
 	"time"
+)
+
+const (
+	// Time allowed to write a message to the peer.
+	writeWait = 10 * time.Second
+
+	// Time allowed to read the next pong message from the peer.
+	pongWait = 60 * time.Second
+
+	// Send pings to peer with this period. Must be less than pongWait.
+	pingPeriod = (pongWait * 9) / 10
+
+	// Maximum message size allowed from peer.
+	maxMessageSize = 512
+)
+
+var (
+	newline = []byte{'\n'}
+	space   = []byte{' '}
+	hub     = newHub()
 )
 
 // Probably set this buffers size bigger than they are.
@@ -19,17 +40,22 @@ var upgrader = websocket.Upgrader{
 // https://pkg.go.dev/github.com/gorilla/websocket
 // https://github.com/gorilla/websocket/blob/af47554f343b4675b30172ac301638d350db34a5/examples/chat/client.go#L82
 // https://github.com/gorilla/websocket/blob/af47554f343b4675b30172ac301638d350db34a5/examples/chat/hub.go#L9
-
 // EXAMPLE: https://javascript.info/websocket#:~:text=To%20open%20a%20websocket%20connection,It's%20like%20HTTPS%20for%20websockets.
 func main() {
+	fmt.Println("Hello World")
+	Server()
 }
 
 func Server() {
+	go hub.run()
 	http.HandleFunc("/chatbot", handler)
 }
 
 type Client struct {
 	conn *websocket.Conn
+	hub  *Hub
+
+	send chan []byte
 }
 
 func handler(w http.ResponseWriter, req *http.Request) {
@@ -39,7 +65,12 @@ func handler(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	client := Client{conn: conn}
+	client := &Client{conn: conn, hub: hub}
+	hub.register <- client
+
+	fmt.Println(client)
+
+	go client.readPump()
 }
 
 func (c *Client) readPump() {
@@ -58,7 +89,8 @@ func (c *Client) readPump() {
 			break
 		}
 		message = bytes.TrimSpace(bytes.Replace(message, newline, space, -1))
-		c.hub.broadcast <- message
+		//c.hub.SendMessage2 <- message
+		c.hub.SendMessage(c, message)
 	}
 }
 

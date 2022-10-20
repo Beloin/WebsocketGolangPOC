@@ -1,5 +1,5 @@
 module github.com/beloin/websocket-test
 
-go 1.19
+go 1.17
 
-require github.com/gorilla/websocket v1.5.0 // indirect
+require github.com/gorilla/websocket v1.5.0
