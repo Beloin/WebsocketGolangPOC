@@ -21,7 +21,7 @@ func newHub() *Hub {
 	//	fmt.Println(str)
 	//}
 
-	return &Hub{clients: make(map[*Client]bool), broadcast: make(chan []byte)}
+	return &Hub{clients: make(map[*Client]bool), broadcast: make(chan []byte), register: make(chan *Client)}
 }
 
 func (h *Hub) run() {
@@ -29,7 +29,7 @@ func (h *Hub) run() {
 	for {
 		select {
 		case client := <-h.register:
-			println("Registing client")
+			println("Registering client")
 			h.clients[client] = true
 		case client := <-h.unregister:
 			if _, ok := h.clients[client]; ok {
@@ -37,7 +37,7 @@ func (h *Hub) run() {
 				close(client.send)
 			}
 		case message := <-h.broadcast:
-			fmt.Printf(string(message))
+			fmt.Println(string(message))
 			for client := range h.clients {
 				select {
 				case client.send <- message:

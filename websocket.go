@@ -73,7 +73,7 @@ func handler(hub *Hub, w http.ResponseWriter, req *http.Request) {
 
 	client := &Client{conn: conn, hub: hub, send: make(chan []byte)}
 
-	client.hub.register <- client
+	go func() { client.hub.register <- client }()
 
 	fmt.Println("Registered")
 
@@ -106,7 +106,7 @@ func (c *Client) readPump() {
 	c.conn.SetPongHandler(func(string) error { c.conn.SetReadDeadline(time.Now().Add(pongWait)); return nil })
 	for {
 		_, message, err := c.conn.ReadMessage()
-		println("READ-ED MESSAGE")
+		println("Incoming Message:")
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
 				fmt.Printf("error: %v", err)
