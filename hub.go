@@ -11,19 +11,17 @@ type Hub struct {
 	// Unregister requests from clients.
 	unregister chan *Client
 
-	SendMessage func(client *Client, message []byte)
-
-	SendMessage2 chan []byte
+	broadcast chan []byte
 }
 
 func newHub() *Hub {
-	fun := func(c *Client, message []byte) {
-		fmt.Println("Got Message:")
-		str := string(message)
-		fmt.Println(str)
-	}
+	//fun := func(c *Client, message []byte) {
+	//	fmt.Println("Got Message:")
+	//	str := string(message)
+	//	fmt.Println(str)
+	//}
 
-	return &Hub{clients: make(map[*Client]bool), SendMessage: fun, SendMessage2: make(chan []byte)}
+	return &Hub{clients: make(map[*Client]bool), broadcast: make(chan []byte)}
 }
 
 func (h *Hub) run() {
@@ -33,12 +31,12 @@ func (h *Hub) run() {
 		case client := <-h.register:
 			println("Registing client")
 			h.clients[client] = true
-		//case client := <-h.unregister:
-		//	if _, ok := h.clients[client]; ok {
-		//		delete(h.clients, client)
-		//		close(client.send)
-		//	}
-		case message := <-h.SendMessage2:
+		case client := <-h.unregister:
+			if _, ok := h.clients[client]; ok {
+				delete(h.clients, client)
+				close(client.send)
+			}
+		case message := <-h.broadcast:
 			fmt.Printf(string(message))
 			for client := range h.clients {
 				select {
